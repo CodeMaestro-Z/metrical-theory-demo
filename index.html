@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>节拍不协和视听模拟器</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: #f9f9f9; }
+        .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .control-group { margin-bottom: 15px; }
+        label { display: inline-block; width: 120px; font-weight: bold; }
+        select, input, button { padding: 5px 10px; font-size: 16px; }
+        button { cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; padding: 10px 20px; }
+        button:hover { background: #0056b3; }
+        
+        .track-container { margin-top: 30px; overflow-x: auto; white-space: nowrap; padding-bottom: 10px; }
+        .track { display: flex; gap: 4px; margin-bottom: 15px; align-items: center; }
+        .track-label { width: 80px; font-weight: bold; flex-shrink: 0; }
+        .node { width: 30px; height: 30px; border-radius: 4px; background: #e0e0e0; transition: all 0.1s; }
+        
+        /* 基础层重音样式：蓝色 */
+        .node.base-accent { background: #a8d5ff; }
+        .node.base-accent.active { background: #007bff; transform: scale(1.2); box-shadow: 0 0 10px #007bff; }
+        
+        /* 冲突层重音样式：红色 */
+        .node.conflict-accent { background: #ffb3b3; }
+        .node.conflict-accent.active { background: #dc3545; transform: scale(1.2); box-shadow: 0 0 10px #dc3545; }
+        
+        /* 扫描器经过的普通节点样式 */
+        .node.active-empty { background: #666; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+    <div class="panel">
+        <h2>节拍不协和 (Metrical Dissonance) 模型</h2>
+        <div class="control-group">
+            <label>不协和类型:</label>
+            <select id="type" onchange="updateUI()">
+                <option value="grouping">分组不协和 (Grouping)</option>
+                <option value="displacement">位移不协和 (Displacement)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>基础节拍:</label>
+            <input type="number" id="baseMeter" value="3" min="2" max="8" onchange="renderGrid()">
+        </div>
+        <div class="control-group" id="conflictGroup">
+            <label id="conflictLabel">冲突节拍:</label>
+            <input type="number" id="conflictMeter" value="4" min="1" max="8" onchange="renderGrid()">
+        </div>
+        <div class="control-group">
+            <label>速度 (BPM):</label>
+            <input type="range" id="bpm" value="150" min="60" max="300" oninput="document.getElementById('bpmVal').innerText=this.value">
+            <span id="bpmVal">150</span>
+        </div>
+        <button id="playBtn" onclick="togglePlay()">播放 / 暂停</button>
+    </div>
+
+    <div class="panel track-container">
+        <div class="track" id="baseTrack">
+            <div class="track-label">基础层</div>
+        </div>
+        <div class="track" id="conflictTrack">
+            <div class="track-label">冲突层</div>
+        </div>
+    </div>
+
+<script>
+    let isPlaying = false;
+    let currentStep = 0;
+    let timer = null;
+    let totalSteps = 12; 
+    let audioCtx = null;
+
+    // 简单的蜂鸣器发声逻辑
+    function playBeep(freq, type = 'sine') {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+    }
+
+    function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+    function lcm(a, b) { return (a * b) / gcd(a, b); }
+
+    function updateUI() {
+        const type = document.getElementById('type').value;
+        const label = document.getElementById('conflictLabel');
+        if (type === 'grouping') {
+            label.innerText = '冲突节拍:';
+            document.getElementById('conflictMeter').value = 4;
+        } else {
+            label.innerText = '向右位移量:';
+            document.getElementById('conflictMeter').value = 1;
+        }
+        renderGrid();
+    }
+
+    function renderGrid() {
+        const type = document.getElementById('type').value;
+        const base = parseInt(document.getElementById('baseMeter').value);
+        const conflict = parseInt(document.getElementById('conflictMeter').value);
+        
+        // 计算轨道长度以展示完整的周期
+        if (type === 'grouping') {
+            totalSteps = lcm(base, conflict);
+            // 为了视觉效果，至少显示两组周期
+            if (totalSteps < 12) totalSteps *= 2; 
+        } else {
+            totalSteps = base * 4; // 位移模式固定显示4个基础周期
+        }
+
+        const baseTrack = document.getElementById('baseTrack');
+        const conflictTrack = document.getElementById('conflictTrack');
+        
+        // 保留Label，清空旧节点
+        baseTrack.innerHTML = '<div class="track-label">基础层</div>';
+        conflictTrack.innerHTML = '<div class="track-label">冲突层</div>';
+
+        for (let i = 0; i < totalSteps; i++) {
+            let bNode = document.createElement('div');
+            bNode.className = 'node';
+            if (i % base === 0) bNode.classList.add('base-accent');
+            baseTrack.appendChild(bNode);
+
+            let cNode = document.createElement('div');
+            cNode.className = 'node';
+            if (type === 'grouping' && i % conflict === 0) {
+                cNode.classList.add('conflict-accent');
+            } else if (type === 'displacement' && i >= conflict && (i - conflict) % base === 0) {
+                cNode.classList.add('conflict-accent');
+            }
+            conflictTrack.appendChild(cNode);
+        }
+    }
+
+    function step() {
+        // 移除所有活跃状态
+        document.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.active-empty').forEach(el => el.classList.remove('active-empty'));
+
+        const baseNodes = document.getElementById('baseTrack').querySelectorAll('.node');
+        const conflictNodes = document.getElementById('conflictTrack').querySelectorAll('.node');
+
+        const bNode = baseNodes[currentStep];
+        const cNode = conflictNodes[currentStep];
+
+        let playBase = false;
+        let playConflict = false;
+
+        if (bNode.classList.contains('base-accent')) {
+            bNode.classList.add('active');
+            playBase = true;
+        } else {
+            bNode.classList.add('active-empty');
+        }
+
+        if (cNode.classList.contains('conflict-accent')) {
+            cNode.classList.add('active');
+            playConflict = true;
+        } else {
+            cNode.classList.add('active-empty');
+        }
+
+        // 声音反馈：基础层音调低，冲突层音调高
+        if (playBase && playConflict) {
+            playBeep(440, 'square'); // 协和点（对齐时）声音更饱满
+            playBeep(660, 'square');
+        } else if (playBase) {
+            playBeep(440);
+        } else if (playConflict) {
+            playBeep(660);
+        }
+
+        currentStep = (currentStep + 1) % totalSteps;
+    }
+
+    function togglePlay() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        isPlaying = !isPlaying;
+        if (isPlaying) {
+            document.getElementById('playBtn').innerText = '停止';
+            document.getElementById('playBtn').style.background = '#dc3545';
+            const bpm = document.getElementById('bpm').value;
+            const interval = 60000 / bpm; // 计算每步的毫秒数
+            timer = setInterval(step, interval);
+        } else {
+            document.getElementById('playBtn').innerText = '播放 / 暂停';
+            document.getElementById('playBtn').style.background = '#007bff';
+            clearInterval(timer);
+            document.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.active-empty').forEach(el => el.classList.remove('active-empty'));
+            currentStep = 0;
+        }
+    }
+
+    // 初始化网格
+    renderGrid();
+</script>
+</body>
+</html>
