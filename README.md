@@ -1,31 +1,40 @@
-# 节拍不协和理论动态视听交互模型 (Metrical Dissonance Simulator)
+# Metrical Dissonance Simulator
 
-本项是一个用于辅助音乐学研究与论文阐述的轻量级数字人文（Digital Humanities）交互工具。它旨在打破传统纸质媒介的局限，通过动态的视觉扫描与实时音频合成，直观地呈现哈拉尔德·克雷布斯（Harald Krebs）的节拍不协和理论（Metrical Dissonance Theory）。
+A lightweight, web-based audiovisual simulator for **Metrical Dissonance**, inspired by Harald Krebs's music theory. 
 
-## 🎵 理论背景
+## Features
 
-根据克雷布斯在 *Fantasy Pieces: Metrical Dissonance in the Music of Robert Schumann* (1999) 中的定义，节拍不协和主要分为两种形态：
-1. **分组不协和 (Grouping Dissonance / G-type):** 两个或多个节奏层由于每组音符数量（周期）不同而产生的冲突（例如 3 对 4 的复合节奏）。
-2. **位移不协和 (Displacement Dissonance / D-type):** 具有相同周期的节奏层，但在时间轴上产生了相位错位（切分感）。
+* **Audiovisual Feedback:** Distinct visual nodes and audio frequencies (440Hz vs 660Hz) clearly differentiate the Primary Metrical Layer from the Interpretive Layer.
+* **Real-time Formulas:** Dynamically calculates and displays Krebs's formulas — $G(x/y)$ for Grouping Dissonance and $D(x+y)$ for Displacement Dissonance.
+* **Mobile Friendly:** Includes a native audio-unlock sequence that successfully bypasses the iOS hardware mute switch, ensuring reliable playback on iPhones and iPads.
+* **Zero Dependencies:** Built entirely with vanilla HTML, CSS, and JavaScript. Simply open the file in any modern browser to run.
 
-由于静态纸质谱例无法直观表现这种动态的咬合与“解决”过程，本工具通过网页端的视听同步，帮助读者快速建立关于不协和模型的感性认知。
+## How to Use
 
-## 🚀 功能特点
+1. Open `index.html` in your web browser.
+2. Select the type of dissonance (Grouping or Displacement).
+3. Adjust the base meter (Primary) and conflict meter (Interpretive) parameters.
+4. Set your desired BPM and click Play.
 
-* **纯前端构建：** 无需任何后端服务器或环境配置，加载速度极快，适合移动端扫码快速访问。
-* **参数化实时调节：** 支持动态修改基础节拍（Base Meter）、冲突节拍/位移量，以及整体速度（BPM）。
-* **视听同步反馈：** * **视觉：** 动态扫描线循环播放，通过不同的高亮色彩区分基础层与冲突层，并在两层重音对齐（协和解决）时触发强烈的视觉提示。
-  * **听觉：** 基于浏览器原生的 `Web Audio API` 实时合成正弦波与方波音效，通过音调的高低和音色的变化区分不同层级的重音。
+## 📂 Project Structure & Deployment
 
-## 📂 项目结构与部署
+* `index.html`: A single file containing all UI layouts, styles, and core interactive logic.
+* This project is statically hosted and deployed via **GitHub Pages**.
 
-* `index.html`: 包含所有界面布局、样式及核心交互逻辑的单文件。
-* 本项目已通过 **GitHub Pages** 进行静态托管。
+## 📄 Academic Declaration & Citation
 
-## 📄 论文引用与学术声明
+This program serves as a digital appendix to the author's degree thesis. 
+If you utilize this tool in academic research, teaching demonstrations, or thesis writing, please cite it using the following format:
 
-本程序属于作者学位论文的数字化附录部分。
-如果您在学术研究、教学演示或论文撰写中引用了本工具，请按照以下格式进行注明：
+> **[Suggested Citation]**
+> Xingyu Zhu. Metrical Dissonance Simulator [OL]. GitHub Pages, 2026. `https://CodeMaestro-Z.github.io/metrical-theory-demo/`
 
-> **[建议引用格式]**
-> Xingyu Zhu. 节拍不协和理论动态视听交互模型 [OL]. GitHub Pages, 2026. `https://CodeMaestro-Z.github.io/metrical-theory-demo/`
+## Changelog
+
+### v1.1.0 (2026-07-15)
+* **Localization:** Updated UI language to Japanese with standard music theory terminology.
+* **Feature:** Added dynamic Krebs formula display.
+* **Fix:** Implemented an audio unlock sequence (silent WAV buffer) to prevent the iOS physical mute switch from muting the Web Audio API.
+
+### v1.0.0
+* Initial release featuring core Grouping and Displacement dissonance simulations.
