@@ -3,101 +3,266 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>拍子不協和シミュレーター</title>
+    <title>Metrical Dissonance Simulator</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: #f9f9f9; }
+        /* 字体动态设置：Times New Roman 优先级最高（负责英数），随后是对应语言的衬线体（负责中日文） */
+        body.ja { font-family: "Times New Roman", "Hiragino Mincho ProN", "Yu Mincho", "MS Mincho", serif; }
+        body.zh { font-family: "Times New Roman", "Songti SC", STSong, SimSun, serif; }
+        body.en { font-family: "Times New Roman", serif; }
+
+        body { padding: 20px; max-width: 800px; margin: 0 auto; background: #f9f9f9; }
+        
+        /* 强制所有表单元素继承当前设定的字体 */
+        button, select, input { font-family: inherit; }
+
         .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .control-group { margin-bottom: 15px; }
-        label { display: inline-block; width: 140px; font-weight: bold; }
-        select, input, button { padding: 5px 10px; font-size: 16px; }
-        button { cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; padding: 10px 20px; }
-        button:hover { background: #0056b3; }
         
-        /* 公式显示区域的样式 */
-        .formula-display { text-align: center; font-size: 28px; font-weight: bold; color: #333; margin: 20px 0; font-family: 'Times New Roman', serif; background: #f1f8ff; padding: 10px; border-radius: 6px; border: 1px dashed #007bff; }
+        .control-group { margin-bottom: 15px; display: flex; align-items: center; }
+        .control-group.column { flex-direction: column; align-items: flex-start; }
+        .control-group.column label { margin-bottom: 8px; width: auto; }
         
-        .track-container { margin-top: 10px; overflow-x: auto; white-space: nowrap; padding-bottom: 10px; }
-        .track { display: flex; gap: 4px; margin-bottom: 25px; align-items: center; }
-        /* 加宽标签区域以容纳较长的日语专业术语 */
-        .track-label { width: 150px; font-weight: bold; flex-shrink: 0; font-size: 13px; line-height: 1.4; white-space: normal; padding-right: 10px; }
-        .node { width: 30px; height: 30px; border-radius: 4px; background: #e0e0e0; transition: all 0.1s; flex-shrink: 0; }
+        /* 移除加粗 */
+        label { display: inline-block; width: 120px; font-weight: normal; }
+        /* 把 input[type="range"] 从这里面删掉 */
+select, button.play-btn { padding: 5px 10px; font-size: 16px; } 
+
+/* 给滑轨单独写一行，去掉 padding，加上 cursor 让鼠标移上去变成小手 */
+input[type="range"] { padding: 0; margin: 0 5px; cursor: pointer; }
         
-        /* 基础层重音样式：蓝色 */
+        /* 移除加粗 */
+        button.play-btn { cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; padding: 10px 20px; font-weight: normal; margin-top: 10px; }
+        button.play-btn:hover { background: #0056b3; }
+        
+        /* 移除加粗 */
+        .formula-display { 
+            text-align: center; 
+            font-size: 16px; 
+            font-weight: normal; 
+            color: #007bff; 
+            padding: 10px; 
+            background: #f0f8ff; 
+            border-radius: 8px; 
+            border: 2px dashed #a8d5ff;
+        }
+
+        .number-control { display: inline-flex; align-items: center; background: #f1f3f5; border-radius: 4px; overflow: hidden; border: 1px solid #ced4da; }
+        /* 移除加粗 */
+        .number-control button { background: #e9ecef; border: none; padding: 2px 12px; font-size: 16px; font-weight: normal; color: #495057; cursor: pointer; transition: background 0.1s; }
+        .number-control button:hover { background: #dee2e6; }
+        .number-control button:active { background: #ced4da; }
+        /* 移除加粗 */
+        .number-control span { width: 32px; text-align: center; font-size: 16px; font-weight: normal; color: #212529; }
+        
+        .track-container { overflow-x: auto; white-space: nowrap; padding-bottom: 10px; }
+        .track { display: flex; gap: 4px; margin-bottom: 15px; align-items: center; }
+        /* 移除加粗，稍微放宽防止明朝体过宽导致换行 */
+        .track-label { width: 100px; font-weight: normal; flex-shrink: 0; }
+        /* 专门针对英文环境缩小这两个标签的字号 */
+body.en .track-label { font-size: 10px; }
+        .node { width: 30px; height: 30px; border-radius: 4px; background: #e0e0e0; transition: all 0.1s; display: inline-block; }
+        
         .node.base-accent { background: #a8d5ff; }
         .node.base-accent.active { background: #007bff; transform: scale(1.2); box-shadow: 0 0 10px #007bff; }
         
-        /* 冲突层重音样式：红色 */
         .node.conflict-accent { background: #ffb3b3; }
         .node.conflict-accent.active { background: #dc3545; transform: scale(1.2); box-shadow: 0 0 10px #dc3545; }
         
-        /* 扫描器经过的普通节点样式 */
         .node.active-empty { background: #666; transform: scale(1.1); }
     </style>
 </head>
-<body>
+<body class="ja"> <!-- 默认应用日语字体环境 -->
 
     <div class="panel">
-        <h2>拍子不協和 (Metrical Dissonance) モデル</h2>
-        <div class="control-group">
-            <label>不協和のタイプ:</label>
+        <div class="control-group column">
+            <label id="lblType">不協和のタイプ:</label>
             <select id="type" onchange="updateUI()">
-                <option value="grouping">グループ分け的不協和（Grouping Dissonance）</option>
-                <option value="displacement">変位的不協和（Displacement Dissonance）</option>
+                <option id="optGrouping" value="grouping">グループ分け的不協和</option>
+                <option id="optDisplacement" value="displacement">変位的不協和</option>
             </select>
         </div>
-        <div class="control-group">
-            <label>主導層 (Primary):</label>
-            <input type="number" id="baseMeter" value="3" min="2" max="8" onchange="renderGrid()">
-        </div>
+        
         <div class="control-group" id="conflictGroup">
-            <label id="conflictLabel">解釈層 (Interpretive):</label>
-            <input type="number" id="conflictMeter" value="4" min="1" max="8" onchange="renderGrid()">
+            <label id="conflictLabel">解釈層:</label>
+            <div class="number-control">
+                <button onclick="changeMeter('conflict', -1)">-</button>
+                <span id="conflictMeterVal">4</span>
+                <button onclick="changeMeter('conflict', 1)">+</button>
+            </div>
         </div>
+
         <div class="control-group">
-            <label>テンポ (BPM):</label>
-            <input type="range" id="bpm" value="150" min="60" max="300" oninput="document.getElementById('bpmVal').innerText=this.value">
-            <span id="bpmVal">150</span>
+            <label id="lblBase">主導層:</label>
+            <div class="number-control">
+                <button onclick="changeMeter('base', -1)">-</button>
+                <span id="baseMeterVal">3</span>
+                <button onclick="changeMeter('base', 1)">+</button>
+            </div>
         </div>
-        <button id="playBtn" onclick="togglePlay()">再生 / 一時停止</button>
+        
+        <div class="control-group column">
+            <label id="lblBpm">テンポ:</label>
+            <div style="display: flex; align-items: center; width: 100%; max-width: 300px;">
+                <input type="range" id="bpm" value="150" min="60" max="300" oninput="document.getElementById('bpmVal').innerText=this.value; stopPlayback();" style="flex-grow: 1;">
+                <!-- 移除字重设定 -->
+                <span id="bpmVal" style="margin-left: 15px; width: 35px; font-weight: normal;">150</span>
+            </div>
+        </div>
+        
+        <button id="playBtn" class="play-btn" onclick="togglePlay()">再生</button>
     </div>
-    
-    <!-- 新增：公式显示区域 -->
-    <div class="formula-display" id="formulaBox">G 3/4</div>
+
+    <div class="panel">
+        <div id="formulaDisplay" class="formula-display"></div>
+    </div>
 
     <div class="panel track-container">
-        <div class="track" id="baseTrack">
-            <!-- 标签由JS动态渲染 -->
-        </div>
         <div class="track" id="conflictTrack">
-            <!-- 标签由JS动态渲染 -->
+            <div class="track-label">解釈層</div>
         </div>
+        <div class="track" id="baseTrack">
+            <div class="track-label">主導層</div>
+        </div>
+    </div>
+
+    <!-- 底部：标题与语言切换模块 -->
+    <div style="text-align: center; margin-top: 40px; margin-bottom: 20px; color: #555;">
+        <div id="appTitle" style="font-size: 16px; margin-bottom: 15px; font-weight: normal;">拍節的不協和シミュレーター</div>
+        <select id="langSelect" onchange="changeLanguage()" style="font-size: 14px; padding: 4px; border-radius: 4px; cursor: pointer;">
+            <option value="ja" selected>日本語</option>
+            <option value="zh">简体中文</option>
+            <option value="en">English</option>
+        </select>
+    </div>
+    
+    <!-- 版权声明说明 -->
+    <div style="text-align: center; font-size: 12px; color: #888; margin-bottom: 20px;">
+        © 2026 Xing-Yu Zhu. Licensed under CC BY 4.0 (Attribution Required).
     </div>
 
 <script>
+    const i18n = {
+        ja: {
+            title: "拍節的不協和シミュレーター",
+            typeLabel: "不協和のタイプ:",
+            optGrouping: "グループ分け的不協和",
+            optDisplacement: "変位的不協和",
+            baseLabel: "主導層:",
+            conflictLabelG: "解釈層:",
+            conflictLabelD: "変位量:",
+            bpmLabel: "テンポ:",
+            btnPlay: "再生",
+            btnStop: "停止",
+            trackConflict: "解釈層",
+            trackBase: "主導層"
+        },
+        zh: {
+            title: "节拍不协和模拟器",
+            typeLabel: "不协和类型:",
+            optGrouping: "分组不协和",
+            optDisplacement: "位移不协和",
+            baseLabel: "主导层:",
+            conflictLabelG: "解释层:",
+            conflictLabelD: "位移量:",
+            bpmLabel: "速度:",
+            btnPlay: "播放",
+            btnStop: "停止",
+            trackConflict: "解释层",
+            trackBase: "主导层"
+        },
+        en: {
+            title: "Metrical Dissonance Simulator",
+            typeLabel: "Dissonance Type:",
+            optGrouping: "Grouping Dissonance",
+            optDisplacement: "Displacement Dissonance",
+            baseLabel: "Primary:",
+            conflictLabelG: "Interpretive:",
+            conflictLabelD: "Displacement:",
+            bpmLabel: "BPM:",
+            btnPlay: "Play",
+            btnStop: "Stop",
+            trackConflict: "Primary Metrical Layer",
+            trackBase: "Interpretive Layer"
+        }
+    };
+
+    let currentLang = 'ja'; 
+
     let isPlaying = false;
     let currentStep = 0;
     let timer = null;
     let totalSteps = 12; 
     let audioCtx = null;
-    let audioUnlocked = false;
+    let silentAudio = null; 
 
-    // 一个极短的无声 WAV Base64（用于破解 iOS 静音开关拦截）
-    const silentWAV = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+    let baseMeter = 3;
+    let conflictMeter = 4;
 
-    // 破解 iOS 音频路由拦截的函数
-    function unlockAudioForiOS() {
-        if (audioUnlocked) return;
-        const dummyAudio = new Audio(silentWAV);
-        dummyAudio.play().then(() => {
-            audioUnlocked = true;
-        }).catch(e => {
-            console.log("Audio unlock not needed or failed", e);
-        });
+    function changeLanguage() {
+        currentLang = document.getElementById('langSelect').value;
+        const t = i18n[currentLang];
+        
+        // 动态修改页面的语言属性和 class，触发字体的自动替换
+        document.documentElement.lang = currentLang;
+        document.body.className = currentLang;
+        
+        document.getElementById('appTitle').innerText = t.title;
+        document.getElementById('lblType').innerText = t.typeLabel;
+        document.getElementById('optGrouping').innerText = t.optGrouping;
+        document.getElementById('optDisplacement').innerText = t.optDisplacement;
+        document.getElementById('lblBase').innerText = t.baseLabel;
+        document.getElementById('lblBpm').innerText = t.bpmLabel;
+        
+        const type = document.getElementById('type').value;
+        document.getElementById('conflictLabel').innerText = type === 'grouping' ? t.conflictLabelG : t.conflictLabelD;
+
+        const playBtn = document.getElementById('playBtn');
+        playBtn.innerText = isPlaying ? t.btnStop : t.btnPlay;
+        
+        const conflictTrackLabel = document.querySelector('#conflictTrack .track-label');
+        const baseTrackLabel = document.querySelector('#baseTrack .track-label');
+        if (conflictTrackLabel) conflictTrackLabel.innerText = t.trackConflict;
+        if (baseTrackLabel) baseTrackLabel.innerText = t.trackBase;
     }
 
-    // 简单的蜂鸣器发声逻辑
+    function changeMeter(target, delta) {
+        if (target === 'base') {
+            let newVal = baseMeter + delta;
+            if (newVal >= 2 && newVal <= 8) {
+                baseMeter = newVal;
+                document.getElementById('baseMeterVal').innerText = baseMeter;
+                renderGrid(); 
+            }
+        } else {
+            let newVal = conflictMeter + delta;
+            if (newVal >= 2 && newVal <= 8) {
+                conflictMeter = newVal;
+                document.getElementById('conflictMeterVal').innerText = conflictMeter;
+                renderGrid();
+            }
+        }
+    }
+
+    function stopPlayback() {
+        if (!isPlaying) return; 
+        
+        isPlaying = false;
+        
+        if (silentAudio) silentAudio.pause();
+
+        const playBtn = document.getElementById('playBtn');
+        playBtn.innerText = i18n[currentLang].btnPlay;
+        playBtn.style.background = '#007bff';
+        
+        clearInterval(timer);
+        
+        document.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.active-empty').forEach(el => el.classList.remove('active-empty'));
+        
+        currentStep = 0;
+    }
+
     function playBeep(freq, type = 'sine') {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!audioCtx) return;
         const osc = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
         osc.type = type;
@@ -113,33 +278,44 @@
     function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
     function lcm(a, b) { return (a * b) / gcd(a, b); }
 
+    function updateFormula() {
+        const type = document.getElementById('type').value;
+        const formulaDisplay = document.getElementById('formulaDisplay');
+
+        if (type === 'grouping') {
+            formulaDisplay.innerHTML = `G <span style="color: #dc3545;">${conflictMeter}</span>/${baseMeter}`;
+        } else {
+            formulaDisplay.innerHTML = `D ${baseMeter}+<span style="color: #dc3545;">${conflictMeter}</span>`;
+        }
+    }
+
     function updateUI() {
         const type = document.getElementById('type').value;
         const label = document.getElementById('conflictLabel');
+        const t = i18n[currentLang];
+        
         if (type === 'grouping') {
-            label.innerText = '解釈層 (Interpretive):';
-            document.getElementById('conflictMeter').value = 4;
+            label.innerText = t.conflictLabelG;
+            conflictMeter = 4;
         } else {
-            label.innerText = '変位量 (Displacement):';
-            document.getElementById('conflictMeter').value = 1;
+            label.innerText = t.conflictLabelD;
+            conflictMeter = 2; 
         }
+        
+        document.getElementById('conflictMeterVal').innerText = conflictMeter;
         renderGrid();
     }
 
     function renderGrid() {
-        const type = document.getElementById('type').value;
-        const base = parseInt(document.getElementById('baseMeter').value);
-        const conflict = parseInt(document.getElementById('conflictMeter').value);
-        
-        // 更新克雷布斯公式显示
-        const formulaBox = document.getElementById('formulaBox');
-        if (type === 'grouping') {
-            formulaBox.innerText = `G ${base}/${conflict}`;
-        } else {
-            formulaBox.innerText = `D ${base}+${conflict}`;
-        }
+        stopPlayback();
 
-        // 计算轨道长度以展示完整的周期
+        const type = document.getElementById('type').value;
+        const base = baseMeter;
+        const conflict = conflictMeter;
+        const t = i18n[currentLang];
+        
+        updateFormula();
+
         if (type === 'grouping') {
             totalSteps = lcm(base, conflict);
             if (totalSteps < 12) totalSteps *= 2; 
@@ -147,11 +323,16 @@
             totalSteps = base * 4; 
         }
 
+        const MAX_STEPS = 32;
+        if (totalSteps > MAX_STEPS) {
+            totalSteps = MAX_STEPS;
+        }
+
         const baseTrack = document.getElementById('baseTrack');
         const conflictTrack = document.getElementById('conflictTrack');
         
-        baseTrack.innerHTML = '<div class="track-label">主導層<br>（Primary Metrical Layer）</div>';
-        conflictTrack.innerHTML = '<div class="track-label">解釈層<br>（Interpretive Layer）</div>';
+        conflictTrack.innerHTML = `<div class="track-label">${t.trackConflict}</div>`;
+        baseTrack.innerHTML = `<div class="track-label">${t.trackBase}</div>`;
 
         for (let i = 0; i < totalSteps; i++) {
             let bNode = document.createElement('div');
@@ -210,30 +391,47 @@
     }
 
     function togglePlay() {
-        // 第一时间尝试解锁 iOS 音频
-        unlockAudioForiOS();
+        const playBtn = document.getElementById('playBtn');
+        const t = i18n[currentLang];
 
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-
-        isPlaying = !isPlaying;
         if (isPlaying) {
-            document.getElementById('playBtn').innerText = '停止';
-            document.getElementById('playBtn').style.background = '#dc3545';
-            const bpm = document.getElementById('bpm').value;
-            const interval = 60000 / bpm; 
-            timer = setInterval(step, interval);
-        } else {
-            document.getElementById('playBtn').innerText = '再生 / 一時停止';
-            document.getElementById('playBtn').style.background = '#007bff';
-            clearInterval(timer);
-            document.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.active-empty').forEach(el => el.classList.remove('active-empty'));
-            currentStep = 0;
+            stopPlayback();
+            return;
         }
+
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0; 
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.01);
+
+        if (!silentAudio) {
+            silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+            silentAudio.loop = true; 
+        }
+        silentAudio.play().catch(e => console.warn('Silent audio blocked:', e));
+
+        isPlaying = true;
+        
+        playBtn.innerText = t.btnStop;
+        playBtn.style.background = '#dc3545';
+        
+        const bpm = document.getElementById('bpm').value;
+        const interval = 60000 / bpm; 
+        
+        step(); 
+        timer = setInterval(step, interval);
     }
 
-    // 初始化网格
     renderGrid();
 </script>
 </body>
